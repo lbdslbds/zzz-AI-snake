@@ -83,7 +83,7 @@ def get_screen():
 #加载数字模板
 def load_templates():
     templates = {}
-    template_dir = 'C:/Users/bowei/Desktop/zzzai/number_templates'
+    template_dir = 'C:/Users/Administrator/Desktop/zzzai/number_templates'
     for i in range(10):
         template_path = os.path.join(template_dir, f'{i}.png')
         if os.path.exists(template_path):
@@ -106,8 +106,8 @@ def get_score(screen):
     _, binary = cv2.threshold(gray, 128, 255, cv2.THRESH_BINARY)
     
     # 创建保存图像的目录
-    save_dir = 'C:/Users/bowei/Desktop/zzzai/score_images'
-    roi_save_dir = 'C:/Users/bowei/Desktop/zzzai/roi_images'
+    save_dir = 'C:/Users/Administrator/Desktop/zzzai/score_images'
+    roi_save_dir = 'C:/Users/Administrator/Desktop/zzzai/roi_images'
     os.makedirs(save_dir, exist_ok=True)
     os.makedirs(roi_save_dir, exist_ok=True)
     
@@ -166,7 +166,7 @@ def process_screen(screen):
     screen = cv2.resize(screen, (84, 84))
     
     # Save the processed screen image
-    save_dir = 'C:/Users/bowei/Desktop/zzzai/processed_screens'
+    save_dir = 'C:/Users/Administrator/Desktop/zzzai/processed_screens'
     os.makedirs(save_dir, exist_ok=True)
     
     # Save every 5 seconds
@@ -198,7 +198,7 @@ def detect_death(screen, template):
     return max_val > 0.8  # Adjust this threshold as needed
 
 def death_detection_thread(screen_queue, is_dead, stop_event):
-    death_template = cv2.imread('C:/Users/bowei/Desktop/zzzai/death_image.png', 0)  # Load your death image here
+    death_template = cv2.imread('C:/Users/Administrator/Desktop/zzzai/death_image.png', 0)  # Load your death image here
     while not stop_event.is_set():
         if not screen_queue.empty():
             screen, _ = screen_queue.get()
@@ -209,7 +209,7 @@ def death_detection_thread(screen_queue, is_dead, stop_event):
 
 def detect_start_image():
     # 加载开始图片
-    start_image = cv2.imread('C:/Users/bowei/Desktop/zzzai/start_image.png', 0)
+    start_image = cv2.imread('C:/Users/Administrator/Desktop/zzzai/start_image.png', 0)
     
     if start_image is None:
         print("Error: Unable to load start image. Please check the file path.")
@@ -233,7 +233,7 @@ def detect_start_image():
         time.sleep(0.5)  # 每0.5秒检查一次
 #训练结束判定
 def detect_end_game(screen_queue, running, training_enabled, stop_event):
-    end_game_image = cv2.imread('C:/Users/bowei/Desktop/zzzai/end_game_image.png', 0)
+    end_game_image = cv2.imread('C:/Users/Administrator/Desktop/zzzai/end_game_image.png', 0)
     
     if end_game_image is None:
         print("Error: Unable to load end game image. Please check the file path.")
@@ -291,7 +291,7 @@ def main():
     criterion = nn.MSELoss()
     #加载数字模板
     templates = load_templates()
-    MODEL_PATH = 'C:/Users/bowei/Desktop/zzzai/game_ai_model.pth'
+    MODEL_PATH = 'C:/Users/Administrator/Desktop/zzzai/game_ai_model.pth'
     print("Loading model...")
     model, optimizer = load_model(model, optimizer, MODEL_PATH)
     print("Model loaded or created successfully")
@@ -343,7 +343,7 @@ def main():
         keyboard.release('j')
         
         # Load the specific image to look for
-        restart_image = cv2.imread('C:/Users/bowei/Desktop/zzzai/start_image.png', 0)
+        restart_image = cv2.imread('C:/Users/Administrator/Desktop/zzzai/start_image.png', 0)
         
         if restart_image is None:
             print("Error: Unable to load restart image. Please check the file path.")
