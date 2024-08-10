@@ -161,15 +161,15 @@ def get_score(screen):
         return 0
 
 def process_screen(screen):
-    # Crop and resize the screen
+    # 裁剪并调整屏幕大小
     screen = screen[251:1385, 630:1927]
     screen = cv2.resize(screen, (84, 84))
     
-    # Save the processed screen image
+    # 保存处理后的屏幕图像
     save_dir = 'C:/Users/Administrator/Desktop/zzzai/processed_screens'
     os.makedirs(save_dir, exist_ok=True)
     
-    # Save every 5 seconds
+    # 每5秒保存一次
     current_time = time.time()
     if not hasattr(process_screen, 'last_save_time') or current_time - process_screen.last_save_time >= 5:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -178,7 +178,7 @@ def process_screen(screen):
         process_screen.last_save_time = current_time
         print(f"Processed screen image saved: {filename}")
     
-    # Convert to PyTorch tensor
+    # 转换为PyTorch张量
     screen = np.transpose(screen, (2, 0, 1))
     processed = torch.FloatTensor(screen).unsqueeze(0)
     print(f"Processed screen shape: {processed.shape}")
@@ -190,12 +190,12 @@ def screen_capture_process(queue, stop_event):
         screen = get_screen()
         score = get_score(screen)
         queue.put((screen, score))
-        time.sleep(0.1)  # Adjust this value to control capture frequency
+        time.sleep(0.1)  # 调整此值以控制屏幕捕获频率
 
 def detect_death(screen, template):
     result = cv2.matchTemplate(screen, template, cv2.TM_CCOEFF_NORMED)
     min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
-    return max_val > 0.8  # Adjust this threshold as needed
+    return max_val > 0.8  # 根据需要调整此阈值
 
 def death_detection_thread(screen_queue, is_dead, stop_event):
     death_template = cv2.imread('C:/Users/Administrator/Desktop/zzzai/death_image.png', 0)  # Load your death image here
@@ -205,7 +205,7 @@ def death_detection_thread(screen_queue, is_dead, stop_event):
             gray_screen = cv2.cvtColor(screen, cv2.COLOR_BGR2GRAY)
             if detect_death(gray_screen, death_template):
                 is_dead.value = True
-        time.sleep(0.1)  # Adjust this value to control detection frequency
+        time.sleep(0.1)  # 调整此值以控制检测频率
 
 def detect_start_image():
     # 加载开始图片
@@ -342,7 +342,7 @@ def main():
         time.sleep(0.1)
         keyboard.release('j')
         
-        # Load the specific image to look for
+        # 加载要查找的特定图像
         restart_image = cv2.imread('C:/Users/Administrator/Desktop/zzzai/start_image.png', 0)
         
         if restart_image is None:
@@ -350,20 +350,20 @@ def main():
             return
         
         print("Waiting for restart image...")
-        max_wait_time = 10  # Maximum wait time in seconds
+        max_wait_time = 10  # 最长等待时间（秒）
         start_time = time.time()
         
         while time.time() - start_time < max_wait_time:
-            # Capture the screen
+            # 捕捉屏幕
             screenshot = pyg.screenshot()
             screenshot = cv2.cvtColor(np.array(screenshot), cv2.COLOR_RGB2GRAY)
             
-            # Perform template matching
+            # 执行模板匹配
             result = cv2.matchTemplate(screenshot, restart_image, cv2.TM_CCOEFF_NORMED)
             min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
             
-            # If the match is good enough, consider it found
-            if max_val > 0.8:  # Adjust this threshold as needed
+            # 如果匹配足够好，就认为找到了
+            if max_val > 0.8:  # 根据需要调整此阈值
                 print("Restart image detected!")
                 update_model = True
                 is_dead.value = False
@@ -374,10 +374,10 @@ def main():
                 print('j')
                 time.sleep(0.1)
                 keyboard.release('j')
-            time.sleep(0.5)  # Wait for 0.5 seconds before checking again
+            time.sleep(0.5)  # 等待0.5秒后再次检查
         
         print("Restart image not detected within the time limit.")
-        # You might want to handle this case, maybe by retrying or alerting the user
+        # 通过重试或提醒用户来处理此情况
         print("Entering main loop")
     try:
         while running.value and not stop_event.is_set():
