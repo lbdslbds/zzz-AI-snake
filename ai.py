@@ -10,7 +10,6 @@ import os
 from multiprocessing import Process, Queue, Value, Event
 from ctypes import c_bool
 from pynput.keyboard import Key, Listener, Controller
-import pytesseract
 import signal
 import keyboard
 from datetime import datetime
@@ -31,27 +30,35 @@ training_enabled = Value('b', True)
 class GameAI(nn.Module):
     def __init__(self):
         super(GameAI, self).__init__()
-        self.conv1 = nn.Conv2d(3, 16, kernel_size=5, stride=2)
-        self.conv2 = nn.Conv2d(16, 32, kernel_size=5, stride=2)
-        self.conv3 = nn.Conv2d(32, 32, kernel_size=5, stride=2)
-        self.fc1 = nn.Linear(32 * 7 * 7, 128)
-        self.fc2 = nn.Linear(128, 4)  # 4 outputs for W, A, S, D
-        self.fc3 = nn.Linear(128, 1)  # 1 output for state
+        self.conv1 = nn.Conv2d(3, 32, kernel_size=5, stride=2)
+        self.conv2 = nn.Conv2d(32, 64, kernel_size=5, stride=2)
+        self.conv3 = nn.Conv2d(64, 128, kernel_size=5, stride=2)
+        self.conv4 = nn.Conv2d(128, 128, kernel_size=5, stride=2)
+        
+        # 输入大小 160x160
+        self.fc1 = nn.Linear(128 * 7 * 7, 256)  # 根据输出调整
+        self.fc2 = nn.Linear(256, 5)  # 5个可选输出 W, A, S, D, and No Action
+        self.fc3 = nn.Linear(256, 1)  # 加速状态输出
 
     def forward(self, x):
         x = torch.relu(self.conv1(x))
         x = torch.relu(self.conv2(x))
         x = torch.relu(self.conv3(x))
-        x = x.view(-1, 32 * 7 * 7)
+        x = torch.relu(self.conv4(x))
+        
+        # 打印sharp以找到正确的尺寸
+        print("Shape before view:", x.shape)
+        
+        # 调整view
+        x = x.view(x.size(0), -1)
         x = torch.relu(self.fc1(x))
         action = self.fc2(x)
         state = torch.sigmoid(self.fc3(x))
         return action, state
-    
 def load_model(model, optimizer, path):
     if os.path.exists(path):
         try:
-            checkpoint = torch.load(path, map_location=torch.device('cpu'))
+            checkpoint = torch.load(path,weights_only=True)
             model.load_state_dict(checkpoint['model_state_dict'])
             optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
             print(f"Model and optimizer state dictionary loaded from {path}")
@@ -97,7 +104,7 @@ def load_templates():
 
 def get_score(screen):
     # 提取分数区域
-    image = screen[60:170, 1020:1890]
+    image = screen[60:170, 1020:1891]
     
     # 转换为灰度图
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -106,19 +113,19 @@ def get_score(screen):
     _, binary = cv2.threshold(gray, 128, 255, cv2.THRESH_BINARY)
     
     # 创建保存图像的目录
-    save_dir = 'C:/Users/Administrator/Desktop/zzzai/score_images'
-    roi_save_dir = 'C:/Users/Administrator/Desktop/zzzai/roi_images'
-    os.makedirs(save_dir, exist_ok=True)
-    os.makedirs(roi_save_dir, exist_ok=True)
+    # save_dir = 'C:/Users/Administrator/Desktop/zzzai/score_images'
+    # roi_save_dir = 'C:/Users/Administrator/Desktop/zzzai/roi_images'
+    # os.makedirs(save_dir, exist_ok=True)
+    # os.makedirs(roi_save_dir, exist_ok=True)
     
     # 每5秒保存一次图像
-    current_time = time.time()
-    if not hasattr(get_score, 'last_save_time') or current_time - get_score.last_save_time >= 5:
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f'score_image_{timestamp}.png'
-        cv2.imwrite(os.path.join(save_dir, filename), binary)
-        get_score.last_save_time = current_time
-        print(f"Score image saved: {filename}")
+    # current_time = time.time()
+    # if not hasattr(get_score, 'last_save_time') or current_time - get_score.last_save_time >= 5:
+    #     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    #     filename = f'score_image_{timestamp}.png'
+    #     cv2.imwrite(os.path.join(save_dir, filename), binary)
+    #     get_score.last_save_time = current_time
+    #     print(f"Score image saved: {filename}")
     
     # 加载数字模板
     templates = load_templates()
@@ -128,7 +135,7 @@ def get_score(screen):
     
     # 查找每个数字
     digits = []
-    for x in range(0, binary.shape[1] - template_width + 1, 58):  # 步长设为59，即半个数字宽度
+    for x in range(0, binary.shape[1] - template_width + 1, 58):  # 步长设为58
         roi = binary[:, x:x+template_width]
         
         # 确保ROI至少与模板一样大
@@ -139,7 +146,7 @@ def get_score(screen):
         # timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         # roi_filename = f'roi_{timestamp}_{x}.png'
         # cv2.imwrite(os.path.join(roi_save_dir, roi_filename), roi)
-        #print(f"ROI image saved: {roi_filename}")
+        # print(f"ROI image saved: {roi_filename}")
         
         best_match = -1
         best_val = -np.inf
@@ -153,36 +160,32 @@ def get_score(screen):
             digits.append(str(best_match))
     
     score = ''.join(digits)
-    # print(f"Extracted score: {score}")
+    #print(f"Extracted score: {score}")
     
     try:
-        return int(score)
+        return int(score)*10
     except ValueError:
         return 0
 
 def process_screen(screen):
-    # 裁剪并调整屏幕大小
+    # 裁剪并调整屏幕大小 160x160
     screen = screen[251:1385, 630:1927]
-    screen = cv2.resize(screen, (84, 84))
+    screen = cv2.resize(screen, (160, 160))
+#     # 保存处理后的屏幕图像
+#     save_dir = 'C:/Users/Administrator/Desktop/zzzai/processed_screens'
+#     os.makedirs(save_dir, exist_ok=True)
     
-    # 保存处理后的屏幕图像
-    save_dir = 'C:/Users/Administrator/Desktop/zzzai/processed_screens'
-    os.makedirs(save_dir, exist_ok=True)
-    
-    # 每5秒保存一次
-    current_time = time.time()
-    if not hasattr(process_screen, 'last_save_time') or current_time - process_screen.last_save_time >= 5:
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f'processed_screen_{timestamp}.png'
-        cv2.imwrite(os.path.join(save_dir, filename), screen)
-        process_screen.last_save_time = current_time
-        print(f"Processed screen image saved: {filename}")
-    
+#     # 每5秒保存一次
+#     current_time = time.time()
+#     if not hasattr(process_screen, 'last_save_time') or current_time - process_screen.last_save_time >= 5:
+#         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+#         filename = f'processed_screen_{timestamp}.png'
+#         cv2.imwrite(os.path.join(save_dir, filename), screen)
+#         process_screen.last_save_time = current_time
+#         print(f"Processed screen image saved: {filename}")    
     # 转换为PyTorch张量
     screen = np.transpose(screen, (2, 0, 1))
     processed = torch.FloatTensor(screen).unsqueeze(0)
-    print(f"Processed screen shape: {processed.shape}")
-    
     return processed
 
 def screen_capture_process(queue, stop_event):
@@ -190,13 +193,18 @@ def screen_capture_process(queue, stop_event):
         screen = get_screen()
         score = get_score(screen)
         queue.put((screen, score))
-        time.sleep(0.1)  # 调整此值以控制屏幕捕获频率
+        time.sleep(0.01)  # 调整此值以控制屏幕捕获频率
 
 def detect_death(screen, template):
     result = cv2.matchTemplate(screen, template, cv2.TM_CCOEFF_NORMED)
     min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
     return max_val > 0.8  # 根据需要调整此阈值
-
+#存活时间统计
+def calculate_survival_reward(survival_time):
+    base_reward = 1  # 每一步存活的基本奖励
+    time_bonus = survival_time * 0.1  # 奖励随时间增加
+    return base_reward + time_bonus
+#死亡检测线程
 def death_detection_thread(screen_queue, is_dead, stop_event):
     death_template = cv2.imread('C:/Users/Administrator/Desktop/zzzai/death_image.png', 0)  # Load your death image here
     while not stop_event.is_set():
@@ -320,25 +328,13 @@ def main():
     step = 0
     update_model = True
     previous_score = 0
+    survival_time = 0
 
-    # def restart_game():
-    #     nonlocal update_model, is_dead
-    #     print("Restarting game...")
-    #     time.sleep(2)
-    #     keyboard.press('j')
-    #     print('j')
-    #     time.sleep(0.1)
-    #     keyboard.release('j')
-    #     time.sleep(1)  # Wait 4 seconds
-    #     update_model = True
-    #     is_dead.value = False
-    #     print("Game restarted")
     def restart_game():
         nonlocal update_model, is_dead
         print("Restarting game...")
         time.sleep(2)
         keyboard.press('j')
-        print('j')
         time.sleep(0.1)
         keyboard.release('j')
         
@@ -371,7 +367,6 @@ def main():
                 return
             else:
                 keyboard.press('j')
-                print('j')
                 time.sleep(0.1)
                 keyboard.release('j')
             time.sleep(0.5)  # 等待0.5秒后再次检查
@@ -379,11 +374,14 @@ def main():
         print("Restart image not detected within the time limit.")
         # 通过重试或提醒用户来处理此情况
         print("Entering main loop")
+
+    
     try:
         while running.value and not stop_event.is_set():
             if is_dead.value:
-                print(f"Death detected. Step: {step}")
+                print(f"Death detected. Step: {step}, Survival time: {survival_time}")
                 step += 1
+                survival_time = 0  # 重置存活时间
                 restart_game()
                 continue
         
@@ -400,32 +398,44 @@ def main():
             
             # 选择概率最高的动作
             action = torch.argmax(action_probs, dim=1).item()
-            actions = ['W', 'A', 'S', 'D']
+            actions = ['W', 'A', 'S', 'D', 'No Action']
             chosen_action = actions[action]
             
             if not is_dead.value:
-                keyboard.press(chosen_action.lower())
-                time.sleep(0.01)
-                keyboard.release(chosen_action.lower())
+                if chosen_action != 'No Action':
+                    keyboard.press(chosen_action.lower())
+                    time.sleep(0.01)
+                    keyboard.release(chosen_action.lower())
+                else:
+                    # 如果选择了 "No Action"，不执行任何键盘操作
+                    pass
                 
                 if state.item() > 0.5:
                     keyboard.press('j')
                 else:
                     keyboard.release('j')
-            
-            print(f"Step: {step}, Score: {current_score}, Action: {chosen_action}, State: {state.item():.2f}, Training: {'Enabled' if training_enabled.value else 'Disabled'}")
+
+                survival_time += 1  # 增加存活时间
+
+            print(f"Step: {step}, Score: {current_score}, Action: {chosen_action}, State: {state.item():.2f}, Survival Time: {survival_time}, Training: {'Enabled' if training_enabled.value else 'Disabled'}")
             
             if update_model and training_enabled.value:
-                reward = current_score - previous_score
-                target_q = reward + 0.99 * torch.max(action_logits).detach()
+                score_reward = current_score - previous_score
+                survival_reward = calculate_survival_reward(survival_time)
+                total_reward = score_reward + survival_reward
+                
+                target_q = total_reward + 0.99 * torch.max(action_logits).detach()
                 current_q = action_logits[0, action]
                 
                 loss = criterion(current_q, target_q)
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
+                
+                print(f"Reward - Score: {score_reward}, Survival: {survival_reward:.2f}, Total: {total_reward:.2f}")
             else:
                 print("Training is currently disabled")
+            
             previous_score = current_score
             
             if step % 1000 == 0 and step != 0:
