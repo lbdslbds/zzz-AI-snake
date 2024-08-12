@@ -26,4 +26,4 @@
 4. **游戏控制**：  死亡后`j`键重启游戏。  
 5. **停止训练**：检测`end_game_image.png`停止训练。（仅限游戏中，死亡时无法检测）
 ## 项目的运行环境
-conda env create -f `environment.ymal`
+    conda env create -f environment.ymal
